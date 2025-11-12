@@ -74,24 +74,48 @@
       const loadCars = async () => {
         try {
           if (window.storage) {
+            console.log('🔍 Cargando autos desde storage compartido...');
             const result = await window.storage.list('car:', true);
-            if (result && result.keys) {
-              const carPromises = result.keys.map(key => window.storage.get(key, true));
+            console.log('📋 Keys encontradas:', result);
+            
+            if (result && result.keys && result.keys.length > 0) {
+              const carPromises = result.keys.map(async key => {
+                try {
+                  return await window.storage.get(key, true);
+                } catch (e) {
+                  console.error('Error cargando key:', key, e);
+                  return null;
+                }
+              });
               const carResults = await Promise.all(carPromises);
               const loadedCars = carResults
                 .filter(r => r && r.value)
-                .map(r => JSON.parse(r.value))
+                .map(r => {
+                  try {
+                    return JSON.parse(r.value);
+                  } catch (e) {
+                    console.error('Error parseando:', r.value, e);
+                    return null;
+                  }
+                })
+                .filter(car => car !== null)
                 .sort((a, b) => b.id - a.id);
+              
+              console.log('✅ Autos cargados:', loadedCars.length);
               setCars(loadedCars);
+            } else {
+              console.log('⚠️ No se encontraron autos');
+              setCars([]);
             }
           } else {
+            console.log('📦 Usando localStorage como fallback');
             const stored = localStorage.getItem('cars');
             if (stored) {
               setCars(JSON.parse(stored));
             }
           }
         } catch (error) {
-          console.log('Primera vez');
+          console.error('❌ Error cargando autos:', error);
           setCars([]);
         } finally {
           setLoading(false);
