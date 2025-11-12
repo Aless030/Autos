@@ -14,9 +14,30 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+  
   <script type="text/babel">
     const { useState, useEffect } = React;
     const { Car, Edit2, Trash2, Plus, LogOut, MessageCircle, Menu, X, Shield, Clock, Award, Phone, Mail, MapPin, CheckCircle, Users, TrendingUp } = lucide;
+
+    // 🔥 CONFIGURACIÓN DE FIREBASE
+    const firebaseConfig = {
+      apiKey: "AIzaSyCY3g6fFVhWmstXeCe3YHwOutcnJj-ukIQ",
+      authDomain: "sample-firebase-ai-app-28021.firebaseapp.com",
+      databaseURL: "https://sample-firebase-ai-app-28021-default-rtdb.firebaseio.com",
+      projectId: "sample-firebase-ai-app-28021",
+      storageBucket: "sample-firebase-ai-app-28021.firebasestorage.app",
+      messagingSenderId: "871735212556",
+      appId: "1:871735212556:web:d171a36b43f9c4edf1cc29"
+    };
+
+    // Inicializar Firebase
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const database = firebase.database();
 
     const AutoDealershipApp = () => {
       const [cars, setCars] = useState([]);
@@ -71,85 +92,79 @@
         lucide.createIcons();
       }, [cars, showAddEdit, isAdmin, mobileMenuOpen]);
 
-      const loadCars = async () => {
-        try {
-          if (window.storage) {
-            console.log('🔍 Cargando autos desde storage compartido...');
-            const result = await window.storage.list('car:', true);
-            console.log('📋 Keys encontradas:', result);
+      // 🔥 CARGAR AUTOS DESDE FIREBASE
+      const loadCars = () => {
+        console.log('🔍 Cargando autos desde Firebase...');
+        const carsRef = database.ref('cars');
+        
+        carsRef.on('value', (snapshot) => {
+          const data = snapshot.val();
+          console.log('📋 Datos de Firebase:', data);
+          
+          if (data) {
+            const carsArray = Object.keys(data).map(key => ({
+              id: key,
+              ...data[key]
+            })).sort((a, b) => b.timestamp - a.timestamp);
             
-            if (result && result.keys && result.keys.length > 0) {
-              const carPromises = result.keys.map(async key => {
-                try {
-                  return await window.storage.get(key, true);
-                } catch (e) {
-                  console.error('Error cargando key:', key, e);
-                  return null;
-                }
-              });
-              const carResults = await Promise.all(carPromises);
-              const loadedCars = carResults
-                .filter(r => r && r.value)
-                .map(r => {
-                  try {
-                    return JSON.parse(r.value);
-                  } catch (e) {
-                    console.error('Error parseando:', r.value, e);
-                    return null;
-                  }
-                })
-                .filter(car => car !== null)
-                .sort((a, b) => b.id - a.id);
-              
-              console.log('✅ Autos cargados:', loadedCars.length);
-              setCars(loadedCars);
-            } else {
-              console.log('⚠️ No se encontraron autos');
-              setCars([]);
-            }
+            console.log('✅ Autos cargados:', carsArray.length);
+            setCars(carsArray);
           } else {
-            console.log('📦 Usando localStorage como fallback');
-            const stored = localStorage.getItem('cars');
-            if (stored) {
-              setCars(JSON.parse(stored));
-            }
+            console.log('⚠️ No hay autos en Firebase');
+            setCars([]);
           }
-        } catch (error) {
-          console.error('❌ Error cargando autos:', error);
-          setCars([]);
-        } finally {
           setLoading(false);
-        }
+        }, (error) => {
+          console.error('❌ Error cargando autos:', error);
+          setLoading(false);
+        });
       };
 
+      // 🔥 GUARDAR AUTO EN FIREBASE
       const saveCar = async (car) => {
         try {
-          if (window.storage) {
-            await window.storage.set(`car:${car.id}`, JSON.stringify(car), true);
+          console.log('💾 Guardando auto en Firebase:', car);
+          
+          const carData = {
+            brand: car.brand,
+            model: car.model,
+            year: car.year,
+            price: car.price,
+            image: car.image,
+            description: car.description,
+            timestamp: Date.now()
+          };
+          
+          if (editingCar) {
+            // Actualizar auto existente
+            await database.ref(`cars/${car.id}`).update(carData);
+            console.log('✅ Auto actualizado');
           } else {
-            const newCars = editingCar 
-              ? cars.map(c => c.id === car.id ? car : c)
-              : [...cars, car];
-            localStorage.setItem('cars', JSON.stringify(newCars));
+            // Crear nuevo auto
+            const newCarRef = database.ref('cars').push();
+            await newCarRef.set(carData);
+            console.log('✅ Auto creado');
           }
-          await loadCars();
+          
           alert('✅ Auto guardado exitosamente');
+          setShowAddEdit(false);
+          setEditingCar(null);
+          setFormData({ brand: '', model: '', year: '', price: '', image: '', description: '' });
         } catch (error) {
-          alert('❌ Error al guardar');
+          console.error('❌ Error al guardar:', error);
+          alert('❌ Error al guardar: ' + error.message);
         }
       };
 
+      // 🔥 ELIMINAR AUTO DE FIREBASE
       const deleteCar = async (id) => {
         try {
-          if (window.storage) {
-            await window.storage.delete(`car:${id}`, true);
-          } else {
-            const newCars = cars.filter(c => c.id !== id);
-            localStorage.setItem('cars', JSON.stringify(newCars));
-          }
-          await loadCars();
+          console.log('🗑️ Eliminando auto:', id);
+          await database.ref(`cars/${id}`).remove();
+          console.log('✅ Auto eliminado');
           alert('✅ Auto eliminado');
         } catch (error) {
+          console.error('❌ Error al eliminar:', error);
           alert('❌ Error al eliminar');
         }
       };
@@ -166,19 +181,23 @@
         }
 
         const car = {
-          id: editingCar ? editingCar.id : Date.now(),
+          id: editingCar ? editingCar.id : Date.now().toString(),
           ...formData
         };
 
         saveCar(car);
-        setShowAddEdit(false);
-        setEditingCar(null);
-        setFormData({ brand: '', model: '', year: '', price: '', image: '', description: '' });
       };
 
       const handleEdit = (car) => {
         setEditingCar(car);
-        setFormData(car);
+        setFormData({
+          brand: car.brand,
+          model: car.model,
+          year: car.year,
+          price: car.price,
+          image: car.image || '',
+          description: car.description || ''
+        });
         setShowAddEdit(true);
       };
 
@@ -208,7 +227,7 @@
           <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-              <div className="text-xl text-gray-700">Cargando...</div>
+              <div className="text-xl text-gray-700">Cargando desde Firebase...</div>
             </div>
           </div>
         );
@@ -284,7 +303,7 @@
           {isAdmin && (
             <div className="bg-blue-500 text-white py-3 fixed w-full top-20 z-30 shadow-lg">
               <div className="container mx-auto px-4 flex justify-between items-center">
-                <h2 className="text-lg font-semibold">🔧 Panel de Administrador</h2>
+                <h2 className="text-lg font-semibold">🔥 Panel Admin - Firebase Conectado</h2>
                 <button
                   onClick={() => {
                     setEditingCar(null);
