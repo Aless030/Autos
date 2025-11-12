@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoVentas - Los Mejores Vehículos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const { Car, Edit2, Trash2, Plus, LogOut, MessageCircle, Menu, X, Shield, Clock, Award, Phone, Mail, MapPin, CheckCircle, Users, TrendingUp } = lucide;
+
+    const AutoDealershipApp = () => {
+      const [cars, setCars] = useState([]);
+      const [isAdmin, setIsAdmin] = useState(false);
+      const [showAddEdit, setShowAddEdit] = useState(false);
+      const [editingCar, setEditingCar] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+      const [activeSection, setActiveSection] = useState('inicio');
+      
+      // ⭐⭐⭐ CONFIGURACIÓN ⭐⭐⭐
+      const ADMIN_PASSWORD = 'admin123';
+      const WHATSAPP_NUMBER = '59178901234';
+      const CONTACT_EMAIL = 'ventas@autoventas.com';
+      const CONTACT_PHONE = '+591 789 01234';
+      const CONTACT_ADDRESS = 'Av. Principal 123, La Paz, Bolivia';
+      
+      const [formData, setFormData] = useState({
+        brand: '',
+        model: '',
+        year: '',
+        price: '',
+        image: '',
+        description: ''
+      });
+
+      useEffect(() => {
+        loadCars();
+        
+        const params = new URLSearchParams(window.location.search);
+        const adminParam = params.get('admin');
+        
+        if (adminParam !== null) {
+          setTimeout(() => {
+            const password = prompt('🔐 Ingresa la contraseña de administrador:');
+            if (password === ADMIN_PASSWORD) {
+              setIsAdmin(true);
+              alert('✅ Acceso concedido');
+            } else if (password !== null) {
+              alert('❌ Contraseña incorrecta');
+              window.history.replaceState({}, document.title, window.location.pathname);
+            }
+          }, 500);
+        }
+
+        setTimeout(() => {
+          lucide.createIcons();
+        }, 100);
+      }, []);
+
+      useEffect(() => {
+        lucide.createIcons();
+      }, [cars, showAddEdit, isAdmin, mobileMenuOpen]);
+
+      const loadCars = async () => {
+        try {
+          if (window.storage) {
+            const result = await window.storage.list('car:', true);
+            if (result && result.keys) {
+              const carPromises = result.keys.map(key => window.storage.get(key, true));
+              const carResults = await Promise.all(carPromises);
+              const loadedCars = carResults
+                .filter(r => r && r.value)
+                .map(r => JSON.parse(r.value))
+                .sort((a, b) => b.id - a.id);
+              setCars(loadedCars);
+            }
+          } else {
+            const stored = localStorage.getItem('cars');
+            if (stored) {
+              setCars(JSON.parse(stored));
+            }
+          }
+        } catch (error) {
+          console.log('Primera vez');
+          setCars([]);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const saveCar = async (car) => {
+        try {
+          if (window.storage) {
+            await window.storage.set(`car:${car.id}`, JSON.stringify(car), true);
+          } else {
+            const newCars = editingCar 
+              ? cars.map(c => c.id === car.id ? car : c)
+              : [...cars, car];
+            localStorage.setItem('cars', JSON.stringify(newCars));
+          }
+          await loadCars();
+          alert('✅ Auto guardado exitosamente');
+        } catch (error) {
+          alert('❌ Error al guardar');
+        }
+      };
+
+      const deleteCar = async (id) => {
+        try {
+          if (window.storage) {
+            await window.storage.delete(`car:${id}`, true);
+          } else {
+            const newCars = cars.filter(c => c.id !== id);
+            localStorage.setItem('cars', JSON.stringify(newCars));
+          }
+          await loadCars();
+          alert('✅ Auto eliminado');
+        } catch (error) {
+          alert('❌ Error al eliminar');
+        }
+      };
+
+      const handleLogout = () => {
+        setIsAdmin(false);
+        window.location.href = window.location.pathname;
+      };
+
+      const handleAddEdit = () => {
+        if (!formData.brand || !formData.model || !formData.year || !formData.price) {
+          alert('⚠️ Completa todos los campos obligatorios');
+          return;
+        }
+
+        const car = {
+          id: editingCar ? editingCar.id : Date.now(),
+          ...formData
+        };
+
+        saveCar(car);
+        setShowAddEdit(false);
+        setEditingCar(null);
+        setFormData({ brand: '', model: '', year: '', price: '', image: '', description: '' });
+      };
+
+      const handleEdit = (car) => {
+        setEditingCar(car);
+        setFormData(car);
+        setShowAddEdit(true);
+      };
+
+      const handleDelete = (id) => {
+        if (window.confirm('¿Estás seguro de eliminar este auto?')) {
+          deleteCar(id);
+        }
+      };
+
+      const handleContactWhatsApp = (car) => {
+        const message = `Hola! Estoy interesado en el ${car.brand} ${car.model} ${car.year} - $${car.price}`;
+        const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank');
+      };
+
+      const scrollToSection = (section) => {
+        setActiveSection(section);
+        setMobileMenuOpen(false);
+        const element = document.getElementById(section);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+      };
+
+      if (loading) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+              <div className="text-xl text-gray-700">Cargando...</div>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen bg-white">
+          {/* Header/Navbar */}
+          <nav className="bg-white shadow-lg fixed w-full top-0 z-40">
+            <div className="container mx-auto px-4">
+              <div className="flex justify-between items-center h-20">
+                <div className="flex items-center gap-3 cursor-pointer" onClick={() => scrollToSection('inicio')}>
+                  <i data-lucide="car" className="w-9 h-9 text-blue-600"></i>
+                  <div>
+                    <h1 className="text-2xl font-bold text-gray-800">AutoVentas</h1>
+                    <p className="text-xs text-gray-500">Tu mejor opción</p>
+                  </div>
+                </div>
+
+                {/* Desktop Menu */}
+                <div className="hidden md:flex items-center gap-8">
+                  <button onClick={() => scrollToSection('inicio')} className={`font-semibold transition-colors ${activeSection === 'inicio' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'}`}>
+                    Inicio
+                  </button>
+                  <button onClick={() => scrollToSection('servicios')} className={`font-semibold transition-colors ${activeSection === 'servicios' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'}`}>
+                    Servicios
+                  </button>
+                  <button onClick={() => scrollToSection('catalogo')} className={`font-semibold transition-colors ${activeSection === 'catalogo' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'}`}>
+                    Catálogo
+                  </button>
+                  <button onClick={() => scrollToSection('nosotros')} className={`font-semibold transition-colors ${activeSection === 'nosotros' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'}`}>
+                    Nosotros
+                  </button>
+                  <button onClick={() => scrollToSection('contacto')} className={`font-semibold transition-colors ${activeSection === 'contacto' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'}`}>
+                    Contacto
+                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={handleLogout}
+                      className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all"
+                    >
+                      <i data-lucide="log-out" className="w-4 h-4"></i>
+                      Admin
+                    </button>
+                  )}
+                </div>
+
+                {/* Mobile Menu Button */}
+                <button className="md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+                  <i data-lucide={mobileMenuOpen ? "x" : "menu"} className="w-7 h-7"></i>
+                </button>
+              </div>
+
+              {/* Mobile Menu */}
+              {mobileMenuOpen && (
+                <div className="md:hidden py-4 border-t">
+                  <div className="flex flex-col gap-4">
+                    <button onClick={() => scrollToSection('inicio')} className="text-left font-semibold text-gray-600 hover:text-blue-600">Inicio</button>
+                    <button onClick={() => scrollToSection('servicios')} className="text-left font-semibold text-gray-600 hover:text-blue-600">Servicios</button>
+                    <button onClick={() => scrollToSection('catalogo')} className="text-left font-semibold text-gray-600 hover:text-blue-600">Catálogo</button>
+                    <button onClick={() => scrollToSection('nosotros')} className="text-left font-semibold text-gray-600 hover:text-blue-600">Nosotros</button>
+                    <button onClick={() => scrollToSection('contacto')} className="text-left font-semibold text-gray-600 hover:text-blue-600">Contacto</button>
+                    {isAdmin && (
+                      <button onClick={handleLogout} className="text-left font-semibold text-red-500">Cerrar Sesión Admin</button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </nav>
+
+          {/* Admin Panel */}
+          {isAdmin && (
+            <div className="bg-blue-500 text-white py-3 fixed w-full top-20 z-30 shadow-lg">
+              <div className="container mx-auto px-4 flex justify-between items-center">
+                <h2 className="text-lg font-semibold">🔧 Panel de Administrador</h2>
+                <button
+                  onClick={() => {
+                    setEditingCar(null);
+                    setFormData({ brand: '', model: '', year: '', price: '', image: '', description: '' });
+                    setShowAddEdit(true);
+                  }}
+                  className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg flex items-center gap-2"
+                >
+                  <i data-lucide="plus" className="w-4 h-4"></i>
+                  Agregar Auto
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className={isAdmin ? 'mt-32' : 'mt-20'}>
+            {/* Hero Section - Inicio */}
+            <section id="inicio" className="relative bg-gradient-to-br from-blue-600 to-blue-800 text-white py-32 overflow-hidden">
+              <div className="absolute inset-0 opacity-10">
+                <div className="absolute top-10 left-10 w-72 h-72 bg-white rounded-full blur-3xl"></div>
+                <div className="absolute bottom-10 right-10 w-96 h-96 bg-blue-400 rounded-full blur-3xl"></div>
+              </div>
+              <div className="container mx-auto px-4 text-center relative z-10">
+                <h1 className="text-5xl md:text-7xl font-bold mb-6 animate-fade-in">Encuentra el Auto de tus Sueños</h1>
+                <p className="text-xl md:text-2xl mb-8 text-blue-100 max-w-3xl mx-auto">Los mejores vehículos al mejor precio, con garantía y financiamiento flexible</p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                  <button 
+                    onClick={() => scrollToSection('catalogo')}
+                    className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-4 rounded-full text-lg font-bold transition-all shadow-xl hover:shadow-2xl hover:scale-105"
+                  >
+                    Ver Catálogo
+                  </button>
+                  <button 
+                    onClick={() => scrollToSection('servicios')}
+                    className="bg-transparent border-2 border-white text-white hover:bg-white hover:text-blue-600 px-8 py-4 rounded-full text-lg font-bold transition-all"
+                  >
+                    Nuestros Servicios
+                  </button>
+                </div>
+                
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-8 max-w-3xl mx-auto mt-16">
+                  <div className="text-center">
+                    <div className="text-4xl font-bold mb-2">500+</div>
+                    <div className="text-blue-200 text-sm">Vehículos Vendidos</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-4xl font-bold mb-2">15+</div>
+                    <div className="text-blue-200 text-sm">Años Experiencia</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-4xl font-bold mb-2">98%</div>
+                    <div className="text-blue-200 text-sm">Clientes Satisfechos</div>
+                  </div>
+                </div>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent"></div>
+            </section>
+
+            {/* Servicios Section */}
+            <section id="servicios" className="py-24 bg-gray-50">
+              <div className="container mx-auto px-4">
+                <div className="text-center mb-16">
+                  <h2 className="text-4xl md:text-5xl font-bold mb-4 text-gray-800">Nuestros Servicios</h2>
+                  <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                    Experiencia completa en compra de vehículos con servicios profesionales de principio a fin
+                  </p>
+                </div>
+                
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+                  <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all hover:-translate-y-2">
+                    <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+                      <i data-lucide="shield" className="w-8 h-8 text-blue-600"></i>
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4 text-gray-800">Garantía Extendida</h3>
+                    <p className="text-gray-600 mb-4">
+                      Todos nuestros vehículos incluyen garantía extendida y soporte técnico post-venta las 24 horas
+                    </p>
+                    <ul className="space-y-2">
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Cobertura hasta 2 años</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Asistencia en carretera</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Mantenimiento incluido</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all hover:-translate-y-2">
+                    <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+                      <i data-lucide="clock" className="w-8 h-8 text-green-600"></i>
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4 text-gray-800">Financiamiento Flexible</h3>
+                    <p className="text-gray-600 mb-4">
+                      Planes de financiamiento adaptados a tu capacidad de pago con las mejores tasas del mercado
+                    </p>
+                    <ul className="space-y-2">
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Aprobación en 24 horas</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Hasta 60 meses de plazo</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Desde 10% de inicial</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all hover:-translate-y-2">
+                    <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+                      <i data-lucide="award" className="w-8 h-8 text-purple-600"></i>
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4 text-gray-800">Asesoría Experta</h3>
+                    <p className="text-gray-600 mb-4">
+                      Nuestros asesores certificados te guían en cada paso para encontrar el vehículo perfecto
+                    </p>
+                    <ul className="space-y-2">
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Atención personalizada</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Test drive sin compromiso</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Evaluación de tu usado</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all hover:-translate-y-2">
+                    <div className="bg-orange-100 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+                      <i data-lucide="users" className="w-8 h-8 text-orange-600"></i>
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4 text-gray-800">Toma de Vehículos</h3>
+                    <p className="text-gray-600 mb-4">
+                      Aceptamos tu vehículo actual como parte de pago con la mejor valoración del mercado
+                    </p>
+                    <ul className="space-y-2">
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Tasación gratuita</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Proceso rápido y seguro</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Documentación incluida</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all hover:-translate-y-2">
+                    <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+                      <i data-lucide="trending-up" className="w-8 h-8 text-red-600"></i>
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4 text-gray-800">Seguros y Accesorios</h3>
+                    <p className="text-gray-600 mb-4">
+                      Protege tu inversión con nuestros planes de seguro y personaliza tu vehículo
+                    </p>
+                    <ul className="space-y-2">
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Seguros todo riesgo</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Accesorios originales</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Instalación profesional</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all hover:-translate-y-2">
+                    <div className="bg-teal-100 w-16 h-16 rounded-full flex items-center justify-center mb-6">
+                      <i data-lucide="car" className="w-8 h-8 text-teal-600"></i>
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4 text-gray-800">Entrega a Domicilio</h3>
+                    <p className="text-gray-600 mb-4">
+                      Llevamos tu nuevo vehículo hasta la puerta de tu casa sin costo adicional
+                    </p>
+                    <ul className="space-y-2">
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Sin cargo extra</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Cobertura nacional</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-gray-600">
+                        <i data-lucide="check-circle" className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                        <span>Seguro de transporte</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Catálogo Section */}
+            <section id="catalogo" className="py-24 bg-white">
+              <div className="container mx-auto px-4">
+                <div className="text-center mb-16">
+                  <h2 className="text-4xl md:text-5xl font-bold mb-4 text-gray-800">Nuestro Catálogo</h2>
+                  <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                    Vehículos seleccionados con los más altos estándares de calidad y verificación técnica
+                  </p>
+                </div>
+
+                {cars.length === 0 ? (
+                  <div className="text-center py-20 bg-gray-50 rounded-2xl">
+                    <i data-lucide="car" className="w-16 h-16 mx-auto text-gray-300 mb-4"></i>
+                    <h3 className="text-2xl font-bold text-gray-700 mb-2">Catálogo en actualización</h3>
+                    <p className="text-gray-500">
+                      {isAdmin ? 'Agrega tu primer vehículo desde el panel de administrador' : 'Pronto agregaremos nuevos vehículos de calidad'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {cars.map(car => (
+                      <div key={car.id} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all transform hover:-translate-y-2">
+                        <div className="h-56 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center overflow-hidden">
+                          {car.image ? (
+                            <img 
+                              src={car.image} 
+                              alt={`${car.brand} ${car.model}`} 
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerHTML = '<i data-lucide="car" class="w-20 h-20 text-gray-400"></i>';
+                                lucide.createIcons();
+                              }}
+                            />
+                          ) : (
+                            <i data-lucide="car" className="w-16 h-16 text-gray-400"></i>
+                          )}
+                        </div>
+                        <div className="p-6">
+                          <h3 className="text-2xl font-bold text-gray-800 mb-2">
+                            {car.brand} {car.model}
+                          </h3>
+                          <p className="text-gray-600 mb-3">Año {car.year}</p>
+                          <p className="text-3xl font-bold text-blue-600 mb-4">${car.price}</p>
+                          {car.description && (
+                            <p className="text-gray-600 text-sm mb-4 line-clamp-2">{car.description}</p>
+                          )}
+                          
+                          <div className="flex gap-2">
+                            {!isAdmin ? (
+                              <button
+                                onClick={() => handleContactWhatsApp(car)}
+                                className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg font-semibold"
+                              >
+                                <i data-lucide="message-circle" className="w-5 h-5"></i>
+                                Consultar
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleEdit(car)}
+                                  className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2"
+                                >
+                                  <i data-lucide="edit-2" className="w-4 h-4"></i>
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(car.id)}
+                                  className="flex-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2"
+                                >
+                                  <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                  Eliminar
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Nosotros Section */}
+            <section id="nosotros" className="py-24 bg-gradient-to-br from-blue-50 to-white">
+              <div className="container mx-auto px-4">
+                <div className="text-center mb-16">
+                  <h2 className="text-4xl md:text-5xl font-bold mb-4 text-gray-800">¿Por Qué Elegirnos?</h2>
+                  <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                    Más de 15 años de experiencia respaldando la confianza de nuestros clientes
+                  </p>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-12 items-center mb-16">
+                  <div>
+                    <h3 className="text-3xl font-bold mb-6 text-gray-800">Nuestra Historia</h3>
+                    <p className="text-gray-600 mb-4 leading-relaxed">
+                      Desde 2008, AutoVentas se ha consolidado como la empresa líder en venta de vehículos en Bolivia. Comenzamos con una visión clara: ofrecer vehículos de calidad con un servicio excepcional que supere las expectativas de nuestros clientes.
+                    </p>
+                    <p className="text-gray-600 mb-6 leading-relaxed">
+                      Hoy, con más de 500 familias satisfechas y un equipo de profesionales comprometidos, continuamos innovando y mejorando cada día para brindarte la mejor experiencia en la compra de tu vehículo.
+                    </p>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="bg-white p-6 rounded-xl shadow-lg">
+                        <div className="text-4xl font-bold text-blue-600 mb-2">15+</div>
+                        <div className="text-gray-600">Años de Experiencia</div>
+                      </div>
+                      <div className="bg-white p-6 rounded-xl shadow-lg">
+                        <div className="text-4xl font-bold text-blue-600 mb-2">500+</div>
+                        <div className="text-gray-600">Clientes Felices</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-8 rounded-2xl text-white">
+                    <h3 className="text-2xl font-bold mb-6">Nuestros Valores</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-3">
+                        <i data-lucide="check-circle" className="w-6 h-6 text-blue-200 flex-shrink-0 mt-1"></i>
+                        <div>
+                          <h4 className="font-bold mb-1">Transparencia</h4>
+                          <p className="text-blue-100 text-sm">Información clara y honesta en cada transacción</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <i data-lucide="check-circle" className="w-6 h-6 text-blue-200 flex-shrink-0 mt-1"></i>
+                        <div>
+                          <h4 className="font-bold mb-1">Calidad</h4>
+                          <p className="text-blue-100 text-sm">Solo vehículos verificados y certificados</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <i data-lucide="check-circle" className="w-6 h-6 text-blue-200 flex-shrink-0 mt-1"></i>
+                        <div>
+                          <h4 className="font-bold mb-1">Compromiso</h4>
+                          <p className="text-blue-100 text-sm">Acompañamiento post-venta garantizado</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <i data-lucide="check-circle" className="w-6 h-6 text-blue-200 flex-shrink-0 mt-1"></i>
+                        <div>
+                          <h4 className="font-bold mb-1">Confianza</h4>
+                          <p className="text-blue-100 text-sm">Tu satisfacción es nuestra prioridad</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Contacto Section */}
+            <section id="contacto" className="py-24 bg-gray-50">
+              <div className="container mx-auto px-4">
+                <div className="text-center mb-16">
+                  <h2 className="text-4xl md:text-5xl font-bold mb-4 text-gray-800">Contáctanos</h2>
+                  <p className="text-lg text-gray-600">
+                    Estamos aquí para ayudarte a encontrar tu auto ideal
+                  </p>
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+                  <div className="bg-white p-8 rounded-2xl shadow-lg text-center hover:shadow-xl transition-all">
+                    <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <i data-lucide="phone" className="w-7 h-7 text-blue-600"></i>
+                    </div>
+                    <h3 className="font-bold text-lg mb-2">Teléfono</h3>
+                    <p className="text-gray-600">{CONTACT_PHONE}</p>
+                    <p className="text-sm text-gray-500 mt-2">Lun - Sáb: 9:00 - 18:00</p>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-2xl shadow-lg text-center hover:shadow-xl transition-all">
+                    <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <i data-lucide="mail" className="w-7 h-7 text-green-600"></i>
+                    </div>
+                    <h3 className="font-bold text-lg mb-2">Email</h3>
+                    <p className="text-gray-600">{CONTACT_EMAIL}</p>
+                    <p className="text-sm text-gray-500 mt-2">Respuesta en 24 horas</p>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-2xl shadow-lg text-center hover:shadow-xl transition-all">
+                    <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <i data-lucide="map-pin" className="w-7 h-7 text-purple-600"></i>
+                    </div>
+                    <h3 className="font-bold text-lg mb-2">Dirección</h3>
+                    <p className="text-gray-600">{CONTACT_ADDRESS}</p>
+                    <p className="text-sm text-gray-500 mt-2">Visítanos hoy</p>
+                  </div>
+                </div>
+
+                <div className="text-center mt-12">
+                  <button
+                    onClick={() => window.open(`https://wa.me/${WHATSAPP_NUMBER}`, '_blank')}
+                    className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-10 py-4 rounded-full text-lg font-bold flex items-center gap-3 mx-auto transition-all shadow-xl hover:shadow-2xl hover:scale-105"
+                  >
+                    <i data-lucide="message-circle" className="w-6 h-6"></i>
+                    Chatea con Nosotros en WhatsApp
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            {/* Footer */}
+            <footer className="bg-gray-900 text-white py-12">
+              <div className="container mx-auto px-4">
+                <div className="grid md:grid-cols-4 gap-8 mb-8">
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <i data-lucide="car" className="w-8 h-8"></i>
+                      <h3 className="text-xl font-bold">AutoVentas</h3>
+                    </div>
+                    <p className="text-gray-400 text-sm">
+                      Tu mejor opción en vehículos de calidad con más de 15 años de experiencia.
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-bold mb-4">Navegación</h4>
+                    <ul className="space-y-2 text-sm">
+                      <li><button onClick={() => scrollToSection('inicio')} className="text-gray-400 hover:text-white transition-colors">Inicio</button></li>
+                      <li><button onClick={() => scrollToSection('servicios')} className="text-gray-400 hover:text-white transition-colors">Servicios</button></li>
+                      <li><button onClick={() => scrollToSection('catalogo')} className="text-gray-400 hover:text-white transition-colors">Catálogo</button></li>
+                      <li><button onClick={() => scrollToSection('nosotros')} className="text-gray-400 hover:text-white transition-colors">Nosotros</button></li>
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-bold mb-4">Servicios</h4>
+                    <ul className="space-y-2 text-sm text-gray-400">
+                      <li>Garantía Extendida</li>
+                      <li>Financiamiento</li>
+                      <li>Toma de Vehículos</li>
+                      <li>Seguros</li>
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-bold mb-4">Contacto</h4>
+                    <ul className="space-y-2 text-sm text-gray-400">
+                      <li>{CONTACT_PHONE}</li>
+                      <li>{CONTACT_EMAIL}</li>
+                      <li>{CONTACT_ADDRESS}</li>
+                    </ul>
+                  </div>
+                </div>
+                
+                <div className="border-t border-gray-800 pt-8 text-center">
+                  <p className="text-sm text-gray-500">© 2024 AutoVentas. Todos los derechos reservados.</p>
+                </div>
+              </div>
+            </footer>
+          </div>
+
+          {/* Modal Agregar/Editar */}
+          {showAddEdit && (
+            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 overflow-y-auto z-50">
+              <div className="bg-white rounded-2xl p-8 max-w-lg w-full my-8 shadow-2xl">
+                <h2 className="text-3xl font-bold mb-6 text-gray-800">
+                  {editingCar ? '✏️ Editar Auto' : '➕ Agregar Auto'}
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Marca *</label>
+                    <input
+                      type="text"
+                      value={formData.brand}
+                      onChange={(e) => setFormData({...formData, brand: e.target.value})}
+                      placeholder="Ej: Toyota, Honda, Ford"
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Modelo *</label>
+                    <input
+                      type="text"
+                      value={formData.model}
+                      onChange={(e) => setFormData({...formData, model: e.target.value})}
+                      placeholder="Ej: Corolla, Civic, F-150"
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Año *</label>
+                    <input
+                      type="text"
+                      value={formData.year}
+                      onChange={(e) => setFormData({...formData, year: e.target.value})}
+                      placeholder="Ej: 2023"
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Precio (USD) *</label>
+                    <input
+                      type="text"
+                      value={formData.price}
+                      onChange={(e) => setFormData({...formData, price: e.target.value})}
+                      placeholder="Ej: 25000"
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">URL de imagen</label>
+                    <input
+                      type="text"
+                      value={formData.image}
+                      onChange={(e) => setFormData({...formData, image: e.target.value})}
+                      placeholder="https://ejemplo.com/imagen.jpg"
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">💡 Click derecho en imagen → Copiar dirección de imagen</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Descripción</label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      placeholder="Características del vehículo..."
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 h-24 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={handleAddEdit}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-lg"
+                  >
+                    {editingCar ? 'Guardar' : 'Agregar'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAddEdit(false);
+                      setEditingCar(null);
+                      setFormData({ brand: '', model: '', year: '', price: '', image: '', description: '' });
+                    }}
+                    className="flex-1 bg-gray-300 hover:bg-gray-400 px-6 py-3 rounded-lg font-semibold transition-all"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<AutoDealershipApp />);
+    
+    setTimeout(() => {
+      lucide.createIcons();
+    }, 100);
+  </script>
+</body>
+</html>
